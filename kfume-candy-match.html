@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Candy Match - Clone Candy Crush</title>
+<style>
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Arial', sans-serif;
+    user-select: none;
+  }
+
+  body {
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: linear-gradient(135deg, #ff9a9e 0%, #fad0c4 50%, #a1c4fd 100%);
+    padding: 10px;
+  }
+
+  .game-container {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 20px;
+    padding: 20px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    text-align: center;
+    max-width: 500px;
+    width: 100%;
+  }
+
+  h1 {
+    color: #e91e63;
+    font-size: 28px;
+    margin-bottom: 10px;
+    text-shadow: 2px 2px 0 #ffd54f;
+  }
+
+  .hud {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 15px;
+    font-weight: bold;
+    color: #333;
+    font-size: 16px;
+  }
+
+  .hud div {
+    background: #fff3e0;
+    padding: 8px 14px;
+    border-radius: 10px;
+    border: 2px solid #ffb74d;
+  }
+
+  #board {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 4px;
+    background: #6d4c41;
+    padding: 8px;
+    border-radius: 12px;
+    margin: 0 auto;
+    aspect-ratio: 1;
+    max-width: 480px;
+  }
+
+  .cell {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s;
+    font-size: 26px;
+    background: #8d6e63;
+    aspect-ratio: 1;
+    position: relative;
+  }
+
+  .cell:hover {
+    transform: scale(1.05);
+  }
+
+  .cell.selected {
+    box-shadow: 0 0 0 3px #fff, 0 0 15px #ffeb3b;
+    transform: scale(1.1);
+    z-index: 2;
+  }
+
+  .cell.matched {
+    animation: pop 0.3s ease forwards;
+  }
+
+  @keyframes pop {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.3); opacity: 0.8; }
+    100% { transform: scale(0); opacity: 0; }
+  }
+
+  /* Couleurs des bonbons */
+  .candy-0 { background: radial-gradient(circle at 30% 30%, #ff8a80, #d32f2f); }
+  .candy-1 { background: radial-gradient(circle at 30% 30%, #ffcc80, #f57c00); }
+  .candy-2 { background: radial-gradient(circle at 30% 30%, #fff59d, #fbc02d); }
+  .candy-3 { background: radial-gradient(circle at 30% 30%, #a5d6a7, #388e3c); }
+  .candy-4 { background: radial-gradient(circle at 30% 30%, #90caf9, #1976d2); }
+  .candy-5 { background: radial-gradient(circle at 30% 30%, #ce93d8, #7b1fa2); }
+
+  .candy {
+    width: 85%;
+    height: 85%;
+    border-radius: 50%;
+    box-shadow: inset -3px -3px 6px rgba(0,0,0,0.3),
+                inset 3px 3px 6px rgba(255,255,255,0.5),
+                0 2px 4px rgba(0,0,0,0.3);
+  }
+
+  button {
+    margin-top: 15px;
+    padding: 12px 30px;
+    background: linear-gradient(135deg, #ff4081, #e91e63);
+    color: white;
+    border: none;
+    border-radius: 25px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(233, 30, 99, 0.4);
+    transition: transform 0.1s;
+  }
+
+  button:hover {
+    transform: translateY(-2px);
+  }
+
+  button:active {
+    transform: translateY(0);
+  }
+
+  .message {
+    margin-top: 10px;
+    font-size: 18px;
+    color: #e91e63;
+    font-weight: bold;
+    min-height: 24px;
+  }
+</style>
+</head>
+<body>
+
+<div class="game-container">
+  <h1>🍬 Candy Match 🍬</h1>
+  <div class="hud">
+    <div>Score: <span id="score">0</span></div>
+    <div>Coups: <span id="moves">30</span></div>
+  </div>
+  <div id="board"></div>
+  <div class="message" id="message"></div>
+  <button onclick="initGame()">🔄 Nouvelle Partie</button>
+</div>
+
+<script>
+// ========================================
+// CONFIGURATION DU JEU
+// ========================================
+const ROWS = 8;
+const COLS = 8;
+const NUM_CANDIES = 6; // 6 types de bonbons
+const STARTING_MOVES = 30;
+
+let board = [];       // Grille de jeu
+let score = 0;
+let moves = 0;
+let selected = null;  // Case sélectionnée
+let isProcessing = false;
+
+// ========================================
+// INITIALISATION DU JEU
+// ========================================
+function initGame() {
+  score = 0;
+  moves = STARTING_MOVES;
+  selected = null;
+  isProcessing = false;
+  document.getElementById('score').textContent = score;
+  document.getElementById('moves').textContent = moves;
+  document.getElementById('message').textContent = '';
+
+  // Créer une grille sans match initial
+  do {
+    board = [];
+    for (let r = 0; r < ROWS; r++) {
+      board[r] = [];
+      for (let c = 0; c < COLS; c++) {
+        board[r][c] = randomCandy();
+      }
+    }
+  } while (findAllMatches().length > 0);
+
+  renderBoard();
+}
+
+function randomCandy() {
+  return Math.floor(Math.random() * NUM_CANDIES);
+}
+
+// ========================================
+// RENDU VISUEL
+// ========================================
+function renderBoard() {
+  const boardEl = document.getElementById('board');
+  boardEl.innerHTML = '';
+
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.row = r;
+      cell.dataset.col = c;
+
+      if (board[r][c] !== null) {
+        const candy = document.createElement('div');
+        candy.className = `candy candy-${board[r][c]}`;
+        cell.appendChild(candy);
+      }
+
+      if (selected && selected.row === r && selected.col === c) {
+        cell.classList.add('selected');
+      }
+
+      cell.addEventListener('click', () => onCellClick(r, c));
+      boardEl.appendChild(cell);
+    }
+  }
+}
+
+// ========================================
+// GESTION DES CLICS
+// ========================================
+function onCellClick(r, c) {
+  if (isProcessing || moves <= 0) return;
+
+  // Première sélection
+  if (!selected) {
+    selected = { row: r, col: c };
+    renderBoard();
+    return;
+  }
+
+  // Clic sur la même case : désélectionner
+  if (selected.row === r && selected.col === c) {
+    selected = null;
+    renderBoard();
+    return;
+  }
+
+  // Vérifier si adjacent
+  const dr = Math.abs(selected.row - r);
+  const dc = Math.abs(selected.col - c);
+  const isAdjacent = (dr === 1 && dc === 0) || (dr === 0 && dc === 1);
+
+  if (!isAdjacent) {
+    selected = { row: r, col: c };
+    renderBoard();
+    return;
+  }
+
+  // Tenter le swap
+  trySwap(selected.row, selected.col, r, c);
+  selected = null;
+}
+
+// ========================================
+// ÉCHANGE DE BONBONS
+// ========================================
+async function trySwap(r1, c1, r2, c2) {
+  isProcessing = true;
+
+  // Swap temporaire
+  swap(r1, c1, r2, c2);
+  renderBoard();
+
+  await sleep(200);
+
+  const matches = findAllMatches();
+
+  if (matches.length === 0) {
+    // Aucun match : annuler le swap
+    swap(r1, c1, r2, c2);
+    renderBoard();
+    isProcessing = false;
+    return;
+  }
+
+  // Valide : consommer un coup
+  moves--;
+  document.getElementById('moves').textContent = moves;
+
+  // Traiter les matches en cascade
+  await processMatches();
+
+  // Vérifier la fin de partie
+  if (moves <= 0) {
+    document.getElementById('message').textContent =
+      `🎉 Partie terminée ! Score final : ${score}`;
+  }
+
+  isProcessing = false;
+}
+
+function swap(r1, c1, r2, c2) {
+  const temp = board[r1][c1];
+  board[r1][c1] = board[r2][c2];
+  board[r2][c2] = temp;
+}
+
+// ========================================
+// DÉTECTION DES MATCHS
+// ========================================
+function findAllMatches() {
+  const matches = new Set();
+
+  // Matchs horizontaux
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS - 2; c++) {
+      const val = board[r][c];
+      if (val === null) continue;
+      let len = 1;
+      while (c + len < COLS && board[r][c + len] === val) len++;
+      if (len >= 3) {
+        for (let i = 0; i < len; i++) {
+          matches.add(`${r},${c + i}`);
+        }
+      }
+    }
+  }
+
+  // Matchs verticaux
+  for (let c = 0; c < COLS; c++) {
+    for (let r = 0; r < ROWS - 2; r++) {
+      const val = board[r][c];
+      if (val === null) continue;
+      let len = 1;
+      while (r + len < ROWS && board[r + len][c] === val) len++;
+      if (len >= 3) {
+        for (let i = 0; i < len; i++) {
+          matches.add(`${r + i},${c}`);
+        }
+      }
+    }
+  }
+
+  return Array.from(matches).map(s => {
+    const [r, c] = s.split(',').map(Number);
+    return { row: r, col: c };
+  });
+}
+
+// ========================================
+// TRAITEMENT DES MATCHS EN CASCADE
+// ========================================
+async function processMatches() {
+  let comboCount = 0;
+
+  while (true) {
+    const matches = findAllMatches();
+    if (matches.length === 0) break;
+
+    comboCount++;
+
+    // Animation des bonbons matchés
+    matches.forEach(({ row, col }) => {
+      const idx = row * COLS + col;
+      const cell = document.getElementById('board').children[idx];
+      if (cell) cell.classList.add('matched');
+    });
+
+    // Calcul du score
+    const points = matches.length * 10 * comboCount;
+    score += points;
+    document.getElementById('score').textContent = score;
+
+    if (comboCount > 1) {
+      document.getElementById('message').textContent =
+        `🔥 Combo x${comboCount} ! +${points}`;
+    }
+
+    await sleep(300);
+
+    // Supprimer les bonbons matchés
+    matches.forEach(({ row, col }) => {
+      board[row][col] = null;
+    });
+
+    renderBoard();
+    await sleep(100);
+
+    // Faire tomber les bonbons
+    dropCandies();
+    renderBoard();
+    await sleep(250);
+  }
+
+  if (comboCount > 0) {
+    setTimeout(() => {
+      document.getElementById('message').textContent = '';
+    }, 1000);
+  }
+}
+
+// ========================================
+// CHUTE ET REMPLISSAGE
+// ========================================
+function dropCandies() {
+  for (let c = 0; c < COLS; c++) {
+    // Faire tomber les bonbons vers le bas
+    let writeRow = ROWS - 1;
+    for (let r = ROWS - 1; r >= 0; r--) {
+      if (board[r][c] !== null) {
+        board[writeRow][c] = board[r][c];
+        if (writeRow !== r) board[r][c] = null;
+        writeRow--;
+      }
+    }
+    // Remplir le haut avec de nouveaux bonbons
+    for (let r = writeRow; r >= 0; r--) {
+      board[r][c] = randomCandy();
+    }
+  }
+}
+
+// ========================================
+// UTILITAIRE
+// ========================================
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// ========================================
+// DÉMARRAGE
+// ========================================
+initGame();
+</script>
+
+</body>
+</html>
